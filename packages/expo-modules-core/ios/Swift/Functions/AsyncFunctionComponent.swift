@@ -5,7 +5,7 @@ import Dispatch
 /**
  Type-erased protocol for asynchronous functions.
  */
-public protocol AnyAsyncFunctionComponent: AnyFunction {
+internal protocol AnyAsyncFunctionComponent: AnyFunction {
   /**
    Specifies on which queue the function should run.
    */
@@ -15,7 +15,7 @@ public protocol AnyAsyncFunctionComponent: AnyFunction {
 /**
  Represents a function that can only be called asynchronously, thus its JavaScript equivalent returns a Promise.
  */
-internal final class AsyncFunctionComponent<Args, ReturnType>: AnyAsyncFunctionComponent {
+public final class AsyncFunctionComponent<Args, FirstArgType, ReturnType>: AnyAsyncFunctionComponent {
   typealias ClosureType = (Args) throws -> ReturnType
 
   /**
@@ -33,13 +33,18 @@ internal final class AsyncFunctionComponent<Args, ReturnType>: AnyAsyncFunctionC
    */
   var queue: DispatchQueue?
 
-  init(_ name: String, dynamicArgumentTypes argTypes: [AnyDynamicType], _ body: @escaping ClosureType) {
+  init(
+    _ name: String,
+    firstArgType: FirstArgType.Type,
+    dynamicArgumentTypes: [AnyDynamicType],
+    _ body: @escaping ClosureType
+  ) {
     self.name = name
-    self.takesPromise = argTypes.last?.wraps(Promise.self) ?? false
+    self.takesPromise = dynamicArgumentTypes.last?.wraps(Promise.self) ?? false
     self.body = body
 
     // Drop the last argument type if it's the `Promise`.
-    self.dynamicArgumentTypes = takesPromise ? argTypes.dropLast(1) : argTypes
+    self.dynamicArgumentTypes = takesPromise ? dynamicArgumentTypes.dropLast(1) : dynamicArgumentTypes
   }
 
   // MARK: - AnyFunction
@@ -96,15 +101,22 @@ internal final class AsyncFunctionComponent<Args, ReturnType>: AnyAsyncFunctionC
     }
   }
 
+  func callWithThis(_ this: Any, args: [Any], callback: @escaping (FunctionCallResult) -> ()) {
+    call(
+      args: concatArguments(args, withThis: this, asType: FirstArgType.self),
+      callback: callback
+    )
+  }
+
   // MARK: - JavaScriptObjectBuilder
 
   func build(inRuntime runtime: JavaScriptRuntime) -> JavaScriptObject {
-    return runtime.createAsyncFunction(name, argsCount: argumentsCount) { [weak self, name] args, resolve, reject in
+    return runtime.createAsyncFunction(name, argsCount: argumentsCount) { [weak self, name] this, args, resolve, reject in
       guard let self = self else {
         let exception = NativeFunctionUnavailableException(name)
         return reject(exception.code, exception.description, nil)
       }
-      self.call(args: args) { result in
+      self.callWithThis(this, args: args) { result in
         switch result {
         case .failure(let error):
           reject(error.code, error.description, nil)
@@ -139,9 +151,10 @@ internal final class NativeFunctionUnavailableException: GenericException<String
 public func AsyncFunction<R>(
   _ name: String,
   _ closure: @escaping () throws -> R
-) -> AnyAsyncFunctionComponent {
+) -> AsyncFunctionComponent<(), Void, R> {
   return AsyncFunctionComponent(
     name,
+    firstArgType: Void.self,
     dynamicArgumentTypes: [],
     closure
   )
@@ -153,9 +166,10 @@ public func AsyncFunction<R>(
 public func AsyncFunction<R, A0: AnyArgument>(
   _ name: String,
   _ closure: @escaping (A0) throws -> R
-) -> AnyAsyncFunctionComponent {
+) -> AsyncFunctionComponent<(A0), A0, R> {
   return AsyncFunctionComponent(
     name,
+    firstArgType: A0.self,
     dynamicArgumentTypes: [~A0.self],
     closure
   )
@@ -167,9 +181,10 @@ public func AsyncFunction<R, A0: AnyArgument>(
 public func AsyncFunction<R, A0: AnyArgument, A1: AnyArgument>(
   _ name: String,
   _ closure: @escaping (A0, A1) throws -> R
-) -> AnyAsyncFunctionComponent {
+) -> AsyncFunctionComponent<(A0, A1), A0, R> {
   return AsyncFunctionComponent(
     name,
+    firstArgType: A0.self,
     dynamicArgumentTypes: [~A0.self, ~A1.self],
     closure
   )
@@ -181,9 +196,10 @@ public func AsyncFunction<R, A0: AnyArgument, A1: AnyArgument>(
 public func AsyncFunction<R, A0: AnyArgument, A1: AnyArgument, A2: AnyArgument>(
   _ name: String,
   _ closure: @escaping (A0, A1, A2) throws -> R
-) -> AnyAsyncFunctionComponent {
+) -> AsyncFunctionComponent<(A0, A1, A2), A0, R> {
   return AsyncFunctionComponent(
     name,
+    firstArgType: A0.self,
     dynamicArgumentTypes: [
       ~A0.self,
       ~A1.self,
@@ -199,9 +215,10 @@ public func AsyncFunction<R, A0: AnyArgument, A1: AnyArgument, A2: AnyArgument>(
 public func AsyncFunction<R, A0: AnyArgument, A1: AnyArgument, A2: AnyArgument, A3: AnyArgument>(
   _ name: String,
   _ closure: @escaping (A0, A1, A2, A3) throws -> R
-) -> AnyAsyncFunctionComponent {
+) -> AsyncFunctionComponent<(A0, A1, A2, A3), A0, R> {
   return AsyncFunctionComponent(
     name,
+    firstArgType: A0.self,
     dynamicArgumentTypes: [
       ~A0.self,
       ~A1.self,
@@ -218,9 +235,10 @@ public func AsyncFunction<R, A0: AnyArgument, A1: AnyArgument, A2: AnyArgument, 
 public func AsyncFunction<R, A0: AnyArgument, A1: AnyArgument, A2: AnyArgument, A3: AnyArgument, A4: AnyArgument>(
   _ name: String,
   _ closure: @escaping (A0, A1, A2, A3, A4) throws -> R
-) -> AnyAsyncFunctionComponent {
+) -> AsyncFunctionComponent<(A0, A1, A2, A3, A4), A0, R> {
   return AsyncFunctionComponent(
     name,
+    firstArgType: A0.self,
     dynamicArgumentTypes: [
       ~A0.self,
       ~A1.self,
@@ -238,9 +256,10 @@ public func AsyncFunction<R, A0: AnyArgument, A1: AnyArgument, A2: AnyArgument, 
 public func AsyncFunction<R, A0: AnyArgument, A1: AnyArgument, A2: AnyArgument, A3: AnyArgument, A4: AnyArgument, A5: AnyArgument>(
   _ name: String,
   _ closure: @escaping (A0, A1, A2, A3, A4, A5) throws -> R
-) -> AnyAsyncFunctionComponent {
+) -> AsyncFunctionComponent<(A0, A1, A2, A3, A4, A5), A0, R> {
   return AsyncFunctionComponent(
     name,
+    firstArgType: A0.self,
     dynamicArgumentTypes: [
       ~A0.self,
       ~A1.self,
@@ -259,9 +278,10 @@ public func AsyncFunction<R, A0: AnyArgument, A1: AnyArgument, A2: AnyArgument, 
 public func AsyncFunction<R, A0: AnyArgument, A1: AnyArgument, A2: AnyArgument, A3: AnyArgument, A4: AnyArgument, A5: AnyArgument, A6: AnyArgument>(
   _ name: String,
   _ closure: @escaping (A0, A1, A2, A3, A4, A5, A6) throws -> R
-) -> AnyAsyncFunctionComponent {
+) -> AsyncFunctionComponent<(A0, A1, A2, A3, A4, A5, A6), A0, R> {
   return AsyncFunctionComponent(
     name,
+    firstArgType: A0.self,
     dynamicArgumentTypes: [
       ~A0.self,
       ~A1.self,
@@ -281,9 +301,10 @@ public func AsyncFunction<R, A0: AnyArgument, A1: AnyArgument, A2: AnyArgument, 
 public func AsyncFunction<R, A0: AnyArgument, A1: AnyArgument, A2: AnyArgument, A3: AnyArgument, A4: AnyArgument, A5: AnyArgument, A6: AnyArgument, A7: AnyArgument>(
   _ name: String,
   _ closure: @escaping (A0, A1, A2, A3, A4, A5, A6, A7) throws -> R
-) -> AnyAsyncFunctionComponent {
+) -> AsyncFunctionComponent<(A0, A1, A2, A3, A4, A5, A6, A7), A0, R> {
   return AsyncFunctionComponent(
     name,
+    firstArgType: A0.self,
     dynamicArgumentTypes: [
       ~A0.self,
       ~A1.self,

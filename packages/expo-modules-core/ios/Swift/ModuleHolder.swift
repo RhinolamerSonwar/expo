@@ -66,7 +66,7 @@ public final class ModuleHolder {
       callback(.failure(FunctionNotFoundException((functionName: functionName, moduleName: self.name))))
       return
     }
-    function.call(args: args, callback: callback)
+    function.callWithThis(self, args: args, callback: callback)
   }
 
   @discardableResult
@@ -76,7 +76,13 @@ public final class ModuleHolder {
     }
     do {
       let arguments = try castArguments(args, toTypes: function.dynamicArgumentTypes)
-      return try function.call(args: arguments)
+      let result = try function.call(args: arguments)
+
+      if let result = result as? SharedObject {
+        let jsObject = SharedObjectRegistry.ensureSharedJavaScriptObject(runtime: appContext!.runtime!, nativeObject: result)
+        return jsObject
+      }
+      return result
     } catch {
       return error
     }

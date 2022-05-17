@@ -14,9 +14,19 @@ public final class ClassComponent: ObjectDefinition {
    */
   let constructor: AnySyncFunctionComponent?
 
-  init(name: String, elements: [ClassComponentElement]) {
+  /**
+   An associated shared object class.
+   */
+  let sharedObjectType: AnyArgumentType?
+
+  init<SharedObjectType: SharedObject>(
+    name: String,
+    sharedObjectType: SharedObjectType.Type? = nil,
+    elements: [ClassComponentElement] = []
+  ) {
     self.name = name
     self.constructor = elements.first(where: isConstructor) as? AnySyncFunctionComponent
+    self.sharedObjectType = ArgumentType(SharedObjectType.self)
 
     // Constructors can't be passed down to the object component
     // as we shouldn't override the default `<Class>.prototype.constructor`.
@@ -28,17 +38,22 @@ public final class ClassComponent: ObjectDefinition {
   // MARK: - JavaScriptObjectBuilder
 
   public override func build(inRuntime runtime: JavaScriptRuntime) -> JavaScriptObject {
-    let klass = runtime.createClass(name) { [weak self, weak runtime] caller, arguments in
+    let klass = runtime.createClass(name) { [weak self, weak runtime] this, arguments in
       guard let self = self, let runtime = runtime else {
         // TODO: Throw an exception? (@tsapeta)
         return
       }
       // The properties can't go into the prototype as they would be shared across all instances.
       // Instead, we decorate the instance object on initialization.
-      self.decorateWithProperties(runtime: runtime, object: caller)
+      self.decorateWithProperties(runtime: runtime, object: this)
 
       // Call the native constructor when defined.
-      let _ = try? self.constructor?.call(args: arguments)
+      let result = try? self.constructor?.callWithThis(this, args: arguments)
+
+      // Register the shared object if returned by the constructor.
+      if let result = result as? SharedObject {
+        SharedObjectRegistry.add(native: result, javaScript: this)
+      }
     }
     decorate(object: klass, inRuntime: runtime)
     return klass

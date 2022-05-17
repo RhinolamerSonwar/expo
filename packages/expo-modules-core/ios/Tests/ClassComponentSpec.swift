@@ -2,6 +2,8 @@ import ExpoModulesTestCore
 
 @testable import ExpoModulesCore
 
+class MySharedObject: SharedObject {}
+
 class ClassComponentSpec: ExpoSpec {
   override func spec() {
     describe("basic") {
@@ -50,7 +52,7 @@ class ClassComponentSpec: ExpoSpec {
           func definition() -> ModuleDefinition {
             Name("ClassTest")
 
-            Class("MyClass") {
+            Class("MyClass", MySharedObject.self) {
               Constructor {}
 
               Function("myFunction") {

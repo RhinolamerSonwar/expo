@@ -17,6 +17,10 @@ namespace jsi = facebook::jsi;
  */
 typedef NS_OPTIONS(NSInteger, EXJavaScriptObjectPropertyDescriptor) {
   /**
+   The default property descriptor — non-configurable, non-enumerable and read-only.
+   */
+  EXJavaScriptObjectPropertyDescriptorDefault = 0,
+  /**
    If set, the type of this property descriptor may be changed and if the property may be deleted from the corresponding object.
    */
   EXJavaScriptObjectPropertyDescriptorConfigurable = 1 << 0,

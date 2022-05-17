@@ -6,7 +6,7 @@ public typealias FunctionCallResult = Result<Any, Exception>
 /**
  A protocol for any type-erased function.
  */
-public protocol AnyFunction: AnyDefinition, JavaScriptObjectBuilder, ClassComponentElement {
+internal protocol AnyFunction: AnyDefinition, JavaScriptObjectBuilder, ClassComponentElement {
   /**
    Name of the function. JavaScript refers to the function by this name.
    */
@@ -31,15 +31,25 @@ public protocol AnyFunction: AnyDefinition, JavaScriptObjectBuilder, ClassCompon
      - callback: A callback that receives a result of the function execution.
    */
   func call(args: [Any], callback: @escaping (FunctionCallResult) -> ())
+
+  func callWithThis(_ this: Any, args: [Any], callback: @escaping (FunctionCallResult) -> ())
 }
 
 extension AnyFunction {
   /**
-   Calls the function just like `call(args:callback:)` but with an empty callback.
+   Calls the function just like `call(args:withThis:callback:)` but with an empty callback.
    Might be useful when you only want to call the function but don't care about the result.
    */
   func call(args: [Any]) {
     call(args: args, callback: { _ in })
+  }
+
+  @discardableResult
+  func concatArguments<T>(_ args: [Any], withThis this: Any, asType type: T.Type) -> [Any] {
+    guard let argType = argumentTypes.first, args.count == argumentsCount - 1 && argType.wraps(T.self) else {
+      return args
+    }
+    return [this] + args
   }
 }
 
